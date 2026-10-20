@@ -1,0 +1,97 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Surfaces */
+  --color-ink: #0d1626;
+  --color-panel: #131f33;
+  --color-raised: #1a2840;
+  --color-line: #22314a;
+  --color-line-strong: #33466a;
+
+  /* Text */
+  --color-text: #dce5f2;
+  --color-muted: #8796ae;
+  --color-faint: #5d6d88;
+
+  /* Meaning */
+  --color-route: #6aa8ff; /* interactive, selection, public entry */
+  --color-sink: #2ec4b0; /* database sink */
+  --color-finding: #f59e4b; /* vulnerability */
+  --color-critical: #f2575b; /* high severity */
+  --color-caution: #e8b94a; /* data quality */
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    background: var(--color-ink);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: 'tnum' 1;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-route);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* React Flow, restyled to the palette. */
+.react-flow {
+  --xy-background-color: transparent;
+  --xy-edge-stroke: var(--color-line-strong);
+  --xy-controls-button-background-color: var(--color-panel);
+  --xy-controls-button-background-color-hover: var(--color-raised);
+  --xy-controls-button-color: var(--color-text);
+  --xy-controls-button-border-color: var(--color-line);
+  --xy-controls-box-shadow: none;
+}
+
+.react-flow__controls {
+  border: 1px solid var(--color-line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.react-flow__edge-path {
+  transition:
+    stroke 160ms ease,
+    stroke-width 160ms ease,
+    opacity 160ms ease;
+}
+
+.react-flow__node {
+  transition: opacity 160ms ease;
+}
+
+/* Moving dashes along the selected route: shows direction of travel. */
+@keyframes route-flow {
+  to {
+    stroke-dashoffset: -16;
+  }
+}
+
+.edge-on-route .react-flow__edge-path {
+  stroke-dasharray: 8 8;
+  animation: route-flow 0.9s linear infinite;
+}
