@@ -9,7 +9,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { Positions } from '../../hooks/useGraphLayout';
+import { NODE_HEIGHT, NODE_WIDTH, type Positions } from '../../hooks/useGraphLayout';
 import { nodeCategory } from '../../lib/node-category';
 import type { ViewMode } from '../../lib/url-state';
 import { type Emphasis, nodeTypes, type ServiceFlowNode } from './ServiceNode';
@@ -68,6 +68,9 @@ function Canvas({ graph, positions, view, matching, selectedPath, selectedNodeId
           id: node.id,
           type: 'service',
           position: positions.get(node.id)!,
+          // Nodes have a fixed size. Without `measured`, React Flow drops the measured handle positions
+          // whenever a node object is recreated (every hover), and all edges vanish for a frame.
+          measured: { width: NODE_WIDTH, height: NODE_HEIGHT },
           hidden: visible ? !visible.nodes.has(node.id) : false,
           data: { node, category: categories.get(node.id)!, emphasis, selected: node.id === selectedNodeId },
           ariaLabel: `${node.name}, ${node.kind}`,
