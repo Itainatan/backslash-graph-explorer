@@ -8,7 +8,7 @@ A graph query engine, REST API and investigation UI for the Train Ticket microse
 - **Frontend**: React + React Flow dashboard. Toggle filters, see the matching routes on the graph, and inspect any service.
 - **Live**: UI https://backslash-graph-explorer.vercel.app · API https://backslash-graph-explorer-api.onrender.com/api/health (free tier: the first request after a quiet period may take up to a minute)
 - **Run locally** (Node 24, see `.nvmrc`), in two terminals: `cd server && npm ci && npm run dev` and `cd client && npm ci && npm run dev`, then open http://localhost:5173
-- **Test**: `npm test` in each folder (128 tests: 102 server, 26 client)
+- **Test**: `npm test` in each folder (142 tests: 114 server, 28 client)
 
 **Key finding**: the full attack-path query (public entry → vulnerable service → database) returns **0 routes**. That is a property of the data, not a bug: `frontend` reaches only 6 other services, none vulnerable and none a database, and the public `gateway-service` has no edges at all ([Data quality](#data-quality)).
 
@@ -113,11 +113,18 @@ export const PATH_FILTERS = [publicEntryFilter, endsAtSinkFilter, hasVulnerabili
 | Bound | Default | Allowed |
 | --- | --: | --- |
 | `maxDepth` (nodes per path) | 12 | 1–30 |
-| `limit` (paths returned) | 250 | 1–500 |
+| `limit` (page size: paths returned) | 250 | 1–500 |
+| `offset` (matches to skip) | 0 | 0–100,000 |
 | traversal budget (node expansions) | 50,000 | internal |
 
-- **Honest truncation**: after `limit` paths are stored, matches are still counted, so the UI can say "showing 250 of 1,234". `meta.truncationReasons` lists any of `limit`, `depth` and `budget`. `matchedCountExact` is false if depth or budget cut the search, and the UI then says "at least N". A path cut at `maxDepth` is never returned as if it were complete.
-- The response `graph` contains only the nodes and the exact edges traversed by the returned paths.
+- **Honest truncation**: matches outside the requested page are still counted, so the UI can say "50 of 1,234 shown". `meta.truncationReasons` lists any of `limit` (more matches after this page), `depth` and `budget`. `matchedCountExact` is false if depth or budget cut the search, and the UI then says "at least N". A path cut at `maxDepth` is never returned as if it were complete.
+- The response `graph` contains the nodes and the exact edges traversed by **all** matching paths, not just the returned page. The UI highlights the matches on the graph from it, so the highlight is complete before every page is loaded.
+
+**Pagination.** Requests page with `offset` + `limit`; `meta.hasMore` says whether another page exists, which starts at `offset + returnedCount`. The UI loads 50 paths per page with a "Load more" button (TanStack `useInfiniteQuery`).
+
+- The search order is deterministic and the graph is static, so plain offsets give stable pages: no duplicates or gaps between pages.
+- The server is stateless, so each page re-runs the search and skips `offset` matches. Paging saves transfer and rendering, not server CPU: counting every match already needs the full search. At this size that costs well under a millisecond.
+- At scale, the next steps would be caching each query's matches for a short time (the graph never changes), or an opaque cursor that stores where the search stopped.
 - At 46 nodes a query takes well under a millisecond. A graph database or a precomputed reachability index would be worth it only with millions of edges, frequent updates or multi-tenant data.
 
 ## Decisions
@@ -125,7 +132,7 @@ export const PATH_FILTERS = [publicEntryFilter, endsAtSinkFilter, hasVulnerabili
 - **NestJS**: modules and DI keep the loader, engine and controllers separately testable, and it is the company stack.
 - **In-memory data**: the graph is a static 46-node snapshot, loaded and validated once at startup. Corrupt input stops the app from booting with a clear error.
 - **POST for queries**: the body is structured and will grow (parameterized filters), and nothing is mutated. A GET with query params would also be valid and HTTP-cacheable.
-- **URL as the source of truth in the UI**: filters, limits and view live in the query string, so refresh, sharing a link and Back/Forward all work. The selection and hover are local state.
+- **URL as the source of truth in the UI**: filters, max depth and view live in the query string, so refresh, sharing a link and Back/Forward all work. The selection and hover are local state.
 
 ## Data quality
 
@@ -157,7 +164,7 @@ All endpoints are under `/api` and return JSON. Types are in `server/src/api-typ
 
 ```bash
 curl -s localhost:3000/api/paths/query -H 'Content-Type: application/json' \
-  -d '{"filters":["endsAtSink","hasVulnerability"],"limit":1}'
+  -d '{"filters":["endsAtSink","hasVulnerability"],"limit":1,"offset":0}'
 ```
 
 ```json
@@ -168,18 +175,18 @@ curl -s localhost:3000/api/paths/query -H 'Content-Type: application/json' \
     "length": 4, "vulnerabilityCount": 1, "vulnerableNodeIds": ["auth-service"],
     "startsPublic": false, "endsAtSink": true
   }],
-  "graph": { "nodes": ["…"], "edges": [{ "id": "admin-user-service->user-service", "source": "admin-user-service", "target": "user-service" }, "…"] },
+  "graph": { "nodes": ["…21 nodes"], "edges": [{ "id": "admin-order-service->order-service", "source": "admin-order-service", "target": "order-service" }, "…40 edges: every match, not just this page"] },
   "meta": {
-    "returnedCount": 1, "matchedCount": 30, "matchedCountExact": true,
+    "returnedCount": 1, "matchedCount": 30, "hasMore": true, "matchedCountExact": true,
     "truncated": true, "truncationReasons": ["limit"], "cycleDeadEnds": 0,
-    "filters": ["endsAtSink", "hasVulnerability"], "maxDepth": 12, "limit": 1
+    "filters": ["endsAtSink", "hasVulnerability"], "maxDepth": 12, "limit": 1, "offset": 0
   }
 }
 ```
 
-Every request field is optional; `{}` returns all routes. Errors:
+Every request field is optional; `{}` returns the first 250 routes (all 220 here). For the next page, send `"offset": <offset + returnedCount>` while `meta.hasMore` is true. Errors:
 
-- **400**, with a `message` array: malformed JSON, a body that is not an object, unknown properties, unknown or duplicate filter IDs, and `maxDepth`/`limit` that are not integers in range. Strings are never coerced: `"12"` is rejected.
+- **400**, with a `message` array: malformed JSON, a body that is not an object, unknown properties, unknown or duplicate filter IDs, and `maxDepth`/`limit`/`offset` that are not integers in range. Strings are never coerced: `"12"` is rejected.
 - **415**: a non-JSON `Content-Type`.
 - **404**: unknown `/api/*` routes.
 - A query with no matches is **200** with `paths: []`.
@@ -214,11 +221,11 @@ API environment variables: `PORT` (default 3000), `DATA_FILE` (default `data/tra
 ## Known limitations and next steps
 
 - The selected path is not in the URL, so a shared link restores the filters but not the selection.
-- No pagination beyond `limit` (max 500).
+- Pagination re-runs the search for each page (see [Algorithm and performance](#algorithm-and-performance)).
 - Cycles unreachable from any root or public node are not explored (reported as `nodesOnNoPath`).
 - The graph layout is computed in the browser on each load and is not saved.
 - No auth or persistence; the dataset is a static file.
-- With more time: parameterized filters, the selected path in the URL, server-side pagination, and precomputed reachability for large graphs.
+- With more time: parameterized filters, the selected path in the URL, cached or cursor-based paging, and precomputed reachability for large graphs.
 
 ## AI assistance
 

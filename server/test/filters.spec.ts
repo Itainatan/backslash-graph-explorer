@@ -54,7 +54,7 @@ describe('filter registry', () => {
 
 describe('path query — all 8 filter combinations on the real dataset', () => {
   const service = new PathQueryService({ graph: loadRealGraph() } as GraphService, DEFAULT_TRAVERSAL_BUDGET);
-  const query = (filters: string[], overrides = {}) => service.query({ filters, maxDepth: 12, limit: 250, ...overrides });
+  const query = (filters: string[], overrides = {}) => service.query({ filters, maxDepth: 12, limit: 250, offset: 0, ...overrides });
 
   it.each`
     publicEntry | endsAtSink | hasVulnerability | paths  | nodes | edges
@@ -108,7 +108,7 @@ describe('path query — all 8 filter combinations on the real dataset', () => {
     expect(result.paths.flatMap((p) => p.nodeIds)).not.toContain('assurance-service');
   });
 
-  it('every response edge is a consecutive pair in at least one returned path, and vice versa', () => {
+  it('every response edge is a consecutive pair in at least one matching path, and vice versa', () => {
     for (const filters of [[], ['endsAtSink'], ['hasVulnerability'], ['publicEntry']]) {
       const result = query(filters);
       const traversed = new Set(result.paths.flatMap((p) => p.nodeIds.slice(1).map((id, i) => `${p.nodeIds[i]}->${id}`)));
@@ -129,11 +129,45 @@ describe('path query — all 8 filter combinations on the real dataset', () => {
     });
   });
 
+  describe('pagination', () => {
+    it('pages of 50 joined together equal the full result, in order', () => {
+      const full = query([]).paths.map((p) => p.id);
+      const pages = [0, 50, 100, 150, 200].map((offset) => query([], { limit: 50, offset }));
+      expect(pages.flatMap((page) => page.paths.map((p) => p.id))).toEqual(full);
+      expect(pages.map((page) => page.meta.offset)).toEqual([0, 50, 100, 150, 200]);
+      expect(pages.map((page) => page.meta.hasMore)).toEqual([true, true, true, true, false]);
+      expect(pages.map((page) => page.meta.matchedCount)).toEqual([220, 220, 220, 220, 220]);
+    });
+
+    it('every page returns the subgraph of all matches, not just its own paths', () => {
+      const full = query(['endsAtSink']).graph;
+      expect(query(['endsAtSink'], { limit: 5, offset: 10 }).graph).toEqual(full);
+      expect(query(['endsAtSink'], { limit: 5, offset: 10 }).graph.edges).toHaveLength(40);
+    });
+
+    it('the last page has no more pages and is not truncated by the limit', () => {
+      expect(query([], { limit: 50, offset: 200 }).meta).toMatchObject({
+        returnedCount: 20,
+        hasMore: false,
+        truncated: false,
+        truncationReasons: [],
+      });
+    });
+
+    it('an offset past the end returns no paths but still counts all matches', () => {
+      expect(query([], { offset: 500 })).toMatchObject({
+        paths: [],
+        meta: { returnedCount: 0, matchedCount: 220, hasMore: false, truncated: false },
+      });
+    });
+  });
+
   describe('truncation', () => {
     it('limit 10, no filters → 10 of 220, reason limit', () => {
       expect(query([], { limit: 10 }).meta).toMatchObject({
         returnedCount: 10,
         matchedCount: 220,
+        hasMore: true,
         matchedCountExact: true,
         truncated: true,
         truncationReasons: ['limit'],
@@ -162,7 +196,7 @@ describe('path query — all 8 filter combinations on the real dataset', () => {
 
     it('a budget stop is reported as inexact', () => {
       const tight = new PathQueryService({ graph: loadRealGraph() } as GraphService, 50);
-      expect(tight.query({ filters: [], maxDepth: 12, limit: 250 }).meta).toMatchObject({
+      expect(tight.query({ filters: [], maxDepth: 12, limit: 250, offset: 0 }).meta).toMatchObject({
         matchedCountExact: false,
         truncated: true,
         truncationReasons: ['budget'],

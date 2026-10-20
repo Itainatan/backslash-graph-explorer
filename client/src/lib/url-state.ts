@@ -9,20 +9,17 @@ export interface QueryState {
   /** Registry IDs, in registry order, de-duplicated. */
   filters: string[];
   maxDepth: number;
-  limit: number;
   view: ViewMode;
 }
 
 /** Mirrors the API's limits (server/src/paths/dto/path-query.dto.ts). */
 export const QUERY_LIMITS = {
   maxDepth: { min: 1, max: 30, default: 12 },
-  limit: { min: 1, max: 500, default: 250 },
 } as const;
 
 export const DEFAULT_QUERY_STATE: QueryState = {
   filters: [],
   maxDepth: QUERY_LIMITS.maxDepth.default,
-  limit: QUERY_LIMITS.limit.default,
   view: 'full',
 };
 
@@ -48,7 +45,6 @@ export function parseQueryState(params: URLSearchParams, knownFilterIds: readonl
   return {
     filters: normalizeFilters(rawFilters, knownFilterIds),
     maxDepth: parseInteger(params.get('maxDepth'), QUERY_LIMITS.maxDepth),
-    limit: parseInteger(params.get('limit'), QUERY_LIMITS.limit),
     view: view === 'matching' || view === 'full' ? view : DEFAULT_QUERY_STATE.view,
   };
 }
@@ -62,12 +58,11 @@ export function serializeQueryState(state: QueryState, knownFilterIds: readonly 
   const filters = normalizeFilters(state.filters, knownFilterIds);
   if (filters.length > 0) parts.push(`filters=${filters.map(encodeURIComponent).join(',')}`);
   if (state.maxDepth !== DEFAULT_QUERY_STATE.maxDepth) parts.push(`maxDepth=${state.maxDepth}`);
-  if (state.limit !== DEFAULT_QUERY_STATE.limit) parts.push(`limit=${state.limit}`);
   if (state.view !== DEFAULT_QUERY_STATE.view) parts.push(`view=${state.view}`);
   return parts.join('&');
 }
 
 /** Only the parts of the state that change the API request (not `view`). */
-export function toPathQuery({ filters, maxDepth, limit }: QueryState) {
-  return { filters, maxDepth, limit };
+export function toPathQuery({ filters, maxDepth }: QueryState) {
+  return { filters, maxDepth };
 }

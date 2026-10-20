@@ -127,7 +127,7 @@ export function NodeDrawer({ node, graph, result, onClose, onNodeClick }: NodeDr
       <div className="flex-1 space-y-5 overflow-y-auto px-4 py-4">
         {inPaths !== undefined && result && (
           <p className="text-sm text-muted">
-            In <span className="font-semibold text-text">{inPaths}</span> of the {result.meta.returnedCount} {result.meta.truncated ? 'returned' : 'matching'} paths
+            In <span className="font-semibold text-text">{inPaths}</span> of the {result.meta.returnedCount} {result.meta.hasMore ? 'loaded' : 'matching'} paths
           </p>
         )}
 

@@ -9,14 +9,9 @@ export function computeGraphStats(graph: LoadedGraph, budget: number): GraphStat
   const nodeCountByKind: Record<string, number> = {};
   for (const node of nodes) nodeCountByKind[node.kind] = (nodeCountByKind[node.kind] ?? 0) + 1;
 
-  // Same engine as the query endpoint, no filters, nothing stored. The predicate also records
-  // which nodes lie on at least one complete path.
-  const onSomePath = new Set<string>();
+  // Same engine as the query endpoint, no filters, nothing stored.
   const search = searchPaths(graph, {
-    match: (path) => {
-      for (const node of path) onSomePath.add(node.id);
-      return true;
-    },
+    match: () => true,
     maxDepth: Number.POSITIVE_INFINITY,
     limit: 0,
     budget,
@@ -39,7 +34,7 @@ export function computeGraphStats(graph: LoadedGraph, budget: number): GraphStat
     rootCount: nodes.filter((n) => n.isRoot).length,
     completePathCount: search.matchedCount,
     completePathCountExact: !search.budgetExceeded,
-    nodesOnNoPath: nodes.filter((n) => !onSomePath.has(n.id)).length,
+    nodesOnNoPath: nodes.filter((n) => !search.matchedNodeIds.has(n.id)).length,
     publicReach: computePublicReach(graph),
     warnings: [...warnings],
   };

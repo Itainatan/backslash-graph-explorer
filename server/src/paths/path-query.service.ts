@@ -6,7 +6,6 @@ import type {
   TruncationReason,
 } from '../api-types';
 import { GraphService } from '../graph/graph.service';
-import type { LoadedGraph } from '../graph/graph.types';
 import { resolveFilters } from './filters/filter.registry';
 import { searchPaths } from './path-search';
 
@@ -17,6 +16,7 @@ export interface PathQuery {
   filters: string[];
   maxDepth: number;
   limit: number;
+  offset: number;
 }
 
 @Injectable()
@@ -26,28 +26,34 @@ export class PathQueryService {
     @Inject(TRAVERSAL_BUDGET) private readonly budget: number,
   ) {}
 
-  query({ filters, maxDepth, limit }: PathQuery): PathQueryResponse {
+  query({ filters, maxDepth, limit, offset }: PathQuery): PathQueryResponse {
     const graph = this.graphService.graph;
     const active = resolveFilters(filters);
     const result = searchPaths(graph, {
       match: (path) => active.every((f) => f.evaluate(path)),
       maxDepth,
       limit,
+      offset,
       budget: this.budget,
     });
 
+    const hasMore = result.matchedCount > offset + result.paths.length;
     const reasons: TruncationReason[] = [];
-    if (result.paths.length < result.matchedCount) reasons.push('limit');
+    if (hasMore) reasons.push('limit');
     if (result.depthCutoff) reasons.push('depth');
     if (result.budgetExceeded) reasons.push('budget');
     const matchedCountExact = !result.depthCutoff && !result.budgetExceeded;
 
     return {
       paths: result.paths.map(toSummary),
-      graph: subgraphOf(graph, result.paths),
+      graph: {
+        nodes: graph.nodes.filter((n) => result.matchedNodeIds.has(n.id)),
+        edges: graph.edges.filter((e) => result.matchedEdgeIds.has(e.id)),
+      },
       meta: {
         returnedCount: result.paths.length,
         matchedCount: result.matchedCount,
+        hasMore,
         matchedCountExact,
         truncated: reasons.length > 0,
         truncationReasons: reasons,
@@ -55,6 +61,7 @@ export class PathQueryService {
         filters: active.map((f) => f.id),
         maxDepth,
         limit,
+        offset,
       },
     };
   }
@@ -71,21 +78,5 @@ function toSummary(path: readonly GraphNode[]): PathSummary {
     vulnerableNodeIds: vulnerable.map((n) => n.id),
     startsPublic: path[0].publicExposed,
     endsAtSink: path[path.length - 1].isSink,
-  };
-}
-
-/** Nodes on the paths and only the edges actually traversed by them, in source order. */
-function subgraphOf(graph: LoadedGraph, paths: readonly GraphNode[][]): PathQueryResponse['graph'] {
-  const nodeIds = new Set<string>();
-  const edgeIds = new Set<string>();
-  for (const path of paths) {
-    path.forEach((node, i) => {
-      nodeIds.add(node.id);
-      if (i > 0) edgeIds.add(`${path[i - 1].id}->${node.id}`);
-    });
-  }
-  return {
-    nodes: graph.nodes.filter((n) => nodeIds.has(n.id)),
-    edges: graph.edges.filter((e) => edgeIds.has(e.id)),
   };
 }

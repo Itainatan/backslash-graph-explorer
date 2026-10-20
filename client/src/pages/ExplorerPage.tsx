@@ -36,7 +36,8 @@ export function ExplorerPage() {
   const [fitRequest, setFitRequest] = useState(0);
 
   const nodesById = useMemo(() => new Map((graphQuery.data?.nodes ?? []).map((n) => [n.id, n])), [graphQuery.data]);
-  const stale = pathsQuery.isError && pathsQuery.lastSuccess !== undefined;
+  // A failed "load more" is shown at the end of the list, not as a failed update.
+  const stale = pathsQuery.isError && !pathsQuery.isFetchNextPageError && pathsQuery.lastSuccess !== undefined;
   const result = pathsQuery.data ?? (stale ? pathsQuery.lastSuccess : undefined);
   const selectedPath = result?.paths.find((p) => p.id === selectedPathId);
   const selectedNode = selectedNodeId ? nodesById.get(selectedNodeId) : undefined;
@@ -84,7 +85,7 @@ export function ExplorerPage() {
             )}
 
             <section aria-label="Matching paths" className="space-y-3 border-t border-line pt-4">
-              <MatchStatus meta={result?.meta} fetching={pathsQuery.isFetching && result !== undefined} />
+              <MatchStatus meta={result?.meta} fetching={pathsQuery.isFetching && !pathsQuery.isFetchingNextPage && result !== undefined} />
               {stale && <StaleBanner onRetry={() => void pathsQuery.refetch()} />}
               {result ? (
                 <PathList
@@ -93,6 +94,11 @@ export function ExplorerPage() {
                   stats={statsQuery.data}
                   nodesById={nodesById}
                   dimmed={pathsQuery.isPlaceholderData}
+                  loadMore={{
+                    onLoad: () => void pathsQuery.fetchNextPage(),
+                    loading: pathsQuery.isFetchingNextPage,
+                    failed: pathsQuery.isFetchNextPageError,
+                  }}
                   selectedPathId={selectedPathId}
                   onSelectPath={setSelectedPathId}
                   onNodeClick={setSelectedNodeId}
