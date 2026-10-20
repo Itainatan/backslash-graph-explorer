@@ -88,6 +88,29 @@ describe('searchPaths — bounds', () => {
     expect(result.matchedCount).toBe(16);
   });
 
+  it('offset skips that many matches and still counts all of them', () => {
+    const all = run(completeDag(6)).ids;
+    const page = run(completeDag(6), { offset: 5, limit: 4 });
+    expect(page.ids).toEqual(all.slice(5, 9));
+    expect(page.matchedCount).toBe(16);
+  });
+
+  it('a page can end exactly at the last match; an offset past the end returns nothing but still counts', () => {
+    const all = run(completeDag(6)).ids;
+    expect(run(completeDag(6), { offset: 12, limit: 4 }).ids).toEqual(all.slice(12));
+    const past = run(completeDag(6), { offset: 99, limit: 4 });
+    expect(past.ids).toEqual([]);
+    expect(past.matchedCount).toBe(16);
+  });
+
+  it('collects the subgraph of every match, whatever the offset and limit', () => {
+    const graph = buildGraph(['A', 'B', 'C', 'D', 'X'], { A: ['B', 'C'], B: ['D'], C: ['D'] });
+    const page = run(graph, { match: (path) => path.length > 1, offset: 1, limit: 0 });
+    expect(page.ids).toEqual([]);
+    expect(page.matchedNodeIds).toEqual(new Set(['A', 'B', 'C', 'D']));
+    expect(page.matchedEdgeIds).toEqual(new Set(['A->B', 'B->D', 'A->C', 'C->D']));
+  });
+
   it('stops at the budget on a dense graph', () => {
     const result = run(completeDag(15), { budget: 1000 });
     expect(result.budgetExceeded).toBe(true);

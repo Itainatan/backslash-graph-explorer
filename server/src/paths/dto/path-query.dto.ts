@@ -5,6 +5,7 @@ import { PATH_FILTER_IDS } from '../filters/filter.registry';
 export const PATH_QUERY_LIMITS = {
   maxDepth: { min: 1, max: 30, default: 12 },
   limit: { min: 1, max: 500, default: 250 },
+  offset: { min: 0, max: 100_000, default: 0 },
 } as const;
 
 /**
@@ -37,4 +38,10 @@ export class PathQueryDto implements PathQueryRequest {
   @Min(PATH_QUERY_LIMITS.limit.min)
   @IsInt()
   limit: number = PATH_QUERY_LIMITS.limit.default;
+
+  @IsOptional()
+  @Max(PATH_QUERY_LIMITS.offset.max)
+  @Min(PATH_QUERY_LIMITS.offset.min)
+  @IsInt()
+  offset: number = PATH_QUERY_LIMITS.offset.default;
 }

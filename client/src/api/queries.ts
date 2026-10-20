@@ -38,10 +38,10 @@ const fetchPaths = (request: Required<PathQueryRequest>) =>
  * The filtered path query. Keeps showing the previous result while a new one loads, and
  * remembers the last successful result so a failed update can fall back to it.
  */
-export function usePaths(request: Required<PathQueryRequest>, enabled: boolean) {
+export function usePaths(request: Omit<Required<PathQueryRequest>, 'offset'>, enabled: boolean) {
   const query = useQuery({
     queryKey: ['paths', request],
-    queryFn: () => fetchPaths(request),
+    queryFn: () => fetchPaths({ ...request, offset: 0 }),
     placeholderData: keepPreviousData,
     staleTime: Infinity,
     enabled,
@@ -56,7 +56,7 @@ export function usePaths(request: Required<PathQueryRequest>, enabled: boolean) 
 export const usePathCount = (filters: string[], maxDepth: number, enabled: boolean) =>
   useQuery({
     queryKey: ['path-count', { filters, maxDepth }],
-    queryFn: () => fetchPaths({ filters, maxDepth, limit: 1 }),
+    queryFn: () => fetchPaths({ filters, maxDepth, limit: 1, offset: 0 }),
     select: (response) => ({ count: response.meta.matchedCount, exact: response.meta.matchedCountExact }),
     staleTime: Infinity,
     enabled,

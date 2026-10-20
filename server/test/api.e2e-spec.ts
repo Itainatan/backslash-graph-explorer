@@ -55,7 +55,7 @@ describe('HTTP API (e2e)', () => {
     it('{} returns all 220 complete paths with defaults echoed', async () => {
       const { body } = await query({}).expect(200);
       expect(body.paths).toHaveLength(220);
-      expect(body.meta).toMatchObject({ filters: [], maxDepth: 12, limit: 250, truncated: false });
+      expect(body.meta).toMatchObject({ filters: [], maxDepth: 12, limit: 250, offset: 0, hasMore: false, truncated: false });
     });
 
     it('a request with no body is treated as {}', async () => {
@@ -78,10 +78,21 @@ describe('HTTP API (e2e)', () => {
       expect(a.body).toEqual(b.body);
     });
 
-    it('response graph edges are exactly the traversed pairs', async () => {
-      const { body } = (await query({ filters: ['endsAtSink'], limit: 5 })) as { body: PathQueryResponse };
-      const traversed = new Set(body.paths.flatMap((p) => p.nodeIds.slice(1).map((id, i) => `${p.nodeIds[i]}->${id}`)));
-      expect(new Set(body.graph.edges.map((e) => e.id))).toEqual(traversed);
+    it('response graph edges are exactly the pairs traversed by all matching paths', async () => {
+      const { body: all } = (await query({ filters: ['endsAtSink'] })) as { body: PathQueryResponse };
+      const traversed = new Set(all.paths.flatMap((p) => p.nodeIds.slice(1).map((id, i) => `${p.nodeIds[i]}->${id}`)));
+      expect(new Set(all.graph.edges.map((e) => e.id))).toEqual(traversed);
+      const { body: page } = (await query({ filters: ['endsAtSink'], limit: 5 })) as { body: PathQueryResponse };
+      expect(page.graph).toEqual(all.graph);
+    });
+
+    it('pages through the matches with offset', async () => {
+      const { body: first } = (await query({ limit: 200 })) as { body: PathQueryResponse };
+      const { body: second } = (await query({ limit: 200, offset: 200 })) as { body: PathQueryResponse };
+      expect(first.meta).toMatchObject({ returnedCount: 200, matchedCount: 220, offset: 0, hasMore: true });
+      expect(second.meta).toMatchObject({ returnedCount: 20, matchedCount: 220, offset: 200, hasMore: false });
+      const { body: all } = (await query({})) as { body: PathQueryResponse };
+      expect([...first.paths, ...second.paths]).toEqual(all.paths);
     });
 
     it.each<[string, unknown, RegExp]>([
@@ -99,6 +110,10 @@ describe('HTTP API (e2e)', () => {
       ['string limit', { limit: '10' }, /^limit must be an integer number$/],
       ['negative limit', { limit: -1 }, /^limit must not be less than 1$/],
       ['limit above max', { limit: 501 }, /^limit must not be greater than 500$/],
+      ['non-integer offset', { offset: 2.5 }, /^offset must be an integer number$/],
+      ['string offset', { offset: '50' }, /^offset must be an integer number$/],
+      ['negative offset', { offset: -1 }, /^offset must not be less than 0$/],
+      ['offset above max', { offset: 100_001 }, /^offset must not be greater than 100000$/],
       ['boolean as filter', { filters: [true] }, /filters must be a string/],
     ])('400 for %s', async (_name, body, message) => {
       const res = await query(body).expect(400);

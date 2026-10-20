@@ -111,8 +111,10 @@ export interface PathQueryRequest {
   filters?: string[];
   /** Maximum nodes in a path (1–30, default 12). */
   maxDepth?: number;
-  /** Maximum paths returned (1–500, default 250). */
+  /** Page size: maximum paths returned (1–500, default 250). */
   limit?: number;
+  /** Matching paths to skip, for the next page (0–100,000, default 0). */
+  offset?: number;
 }
 
 export interface PathSummary {
@@ -132,7 +134,10 @@ export type TruncationReason = 'limit' | 'depth' | 'budget';
 
 export interface PathQueryMeta {
   returnedCount: number;
+  /** All matches, not just this page. */
   matchedCount: number;
+  /** More matches exist after this page; the next page starts at `offset + returnedCount`. */
+  hasMore: boolean;
   /** `true` only if the search finished with no depth cutoff and no budget stop. */
   matchedCountExact: boolean;
   truncated: boolean;
@@ -141,11 +146,12 @@ export interface PathQueryMeta {
   filters: string[];
   maxDepth: number;
   limit: number;
+  offset: number;
 }
 
 export interface PathQueryResponse {
   paths: PathSummary[];
-  /** Nodes and the exact edges traversed by the returned paths, in source order. */
+  /** Nodes and the exact edges traversed by all matching paths (not just this page), in source order. */
   graph: { nodes: GraphNode[]; edges: GraphEdge[] };
   meta: PathQueryMeta;
 }
