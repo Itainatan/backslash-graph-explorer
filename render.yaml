@@ -3,9 +3,10 @@ services:
     name: backslash-graph-explorer-api
     runtime: node
     plan: free
+    rootDir: server
     # Dev dependencies (TypeScript, Nest CLI) are needed at build time.
-    buildCommand: npm ci --include=dev && npm run build -w apps/api
-    startCommand: node apps/api/dist/main.js
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: node dist/main.js
     healthCheckPath: /api/health
     envVars:
       - key: NODE_VERSION

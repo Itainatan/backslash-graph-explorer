@@ -7,8 +7,8 @@ A graph query engine, REST API and investigation UI for the Train Ticket microse
 - **Backend**: NestJS loads `data/train-ticket.json` once, validates it, and enumerates every route from an entry point to an end point with a depth-first search. Routes can be filtered by a registry of pluggable filters (public entry, ends at a sink, has a vulnerability).
 - **Frontend**: React + React Flow dashboard. Toggle filters, see the matching routes on the graph, and inspect any service.
 - **Live**: UI `<VERCEL_URL>` · API `<RENDER_URL>/api/health` (free tier: the first request may take up to a minute)
-- **Run locally** (Node 24, see `.nvmrc`): `npm ci && npm run dev`, then open http://localhost:5173
-- **Test**: `npm test` (128 tests: 102 API, 26 UI)
+- **Run locally** (Node 24, see `.nvmrc`), in two terminals: `cd server && npm ci && npm run dev` and `cd client && npm ci && npm run dev`, then open http://localhost:5173
+- **Test**: `npm test` in each folder (128 tests: 102 server, 26 client)
 
 **Key finding**: the full attack-path query (public entry → vulnerable service → database) returns **0 routes**. That is a property of the data, not a bug: `frontend` reaches only 6 other services, none vulnerable and none a database, and the public `gateway-service` has no edges at all ([Data quality](#data-quality)).
 
@@ -24,7 +24,7 @@ A graph query engine, REST API and investigation UI for the Train Ticket microse
 | Filtering as generic as possible | Filter registry + `GET /api/filters`; a new filter is one file plus one line ([how](#filtering-architecture)) |
 | README with decisions and assumptions | This file |
 | TypeScript | Everywhere, `strict: true` |
-| Usable frontend (interviewer request) | `apps/web` |
+| Usable frontend (interviewer request) | `client/` |
 
 ## Architecture
 
@@ -41,16 +41,19 @@ NestJS API ── PathsController ── PathQueryService ── searchPaths (DF
 ```
 
 ```text
-apps/api          NestJS API
-  src/graph/        loadGraph (pure: parse, validate, normalize), GraphService, /api/graph
-  src/paths/        searchPaths (DFS engine), PathQueryService, filters/, DTO, /api/paths/query, /api/filters
-  src/stats/        global statistics, /api/graph/stats
-apps/web          React UI
-packages/shared   API types shared by both apps (types only, no runtime code)
-scripts/          verify-dataset.ts: independently recomputes every dataset figure
+server/             NestJS API (own package.json; deployed to Render)
+  src/api-types.ts    the REST contract (types only)
+  src/graph/          loadGraph (pure: parse, validate, normalize), GraphService, /api/graph
+  src/paths/          searchPaths (DFS engine), PathQueryService, filters/, DTO, /api/paths/query, /api/filters
+  src/stats/          global statistics, /api/graph/stats
+  data/               train-ticket.json, unchanged from the supplied file
+  scripts/            verify-dataset.ts: independently recomputes every dataset figure
+client/             React UI (own package.json; deployed to Vercel)
 ```
 
 `searchPaths` knows nothing about filters: it receives one `(path) => boolean` predicate. `PathQueryService` builds that predicate from the registry.
+
+**Shared API types.** `server` and `client` are independent projects with their own dependencies. The server owns the REST contract in `server/src/api-types.ts`. The client imports it type-only through a `@api-types` path alias (`client/tsconfig.json`). Type imports are erased at compile time, so no server code reaches the client bundle, but a changed response shape still breaks the client's typecheck.
 
 ## Path semantics
 
@@ -87,7 +90,7 @@ export interface PathFilter {
 **Adding a fourth filter** takes one new file and one line in the registry. No DTO, URL or UI changes:
 
 ```ts
-// apps/api/src/paths/filters/high-severity.filter.ts
+// server/src/paths/filters/high-severity.filter.ts
 export const highSeverityFilter: PathFilter = {
   id: 'highSeverity',
   label: 'High severity',
@@ -138,11 +141,11 @@ The JSON is used exactly as supplied. Issues are reported, never patched:
 | The PDF diagram shows MySQL and RabbitMQ; the JSON has PostgreSQL (RDS) and SQS | The JSON is the source of truth |
 | `prod-sqs` (kind `sqs`) | Not a sink: the sink filter is `rds`/`sql`, case-insensitive |
 
-`npm run verify:data` recomputes all of these figures independently of the app.
+`npm run verify:data` (in `server/`) recomputes all of these figures independently of the app.
 
 ## API reference
 
-All endpoints are under `/api` and return JSON. Types are in `packages/shared/src/api-types.d.ts`.
+All endpoints are under `/api` and return JSON. Types are in `server/src/api-types.ts`.
 
 | Method | Path | Returns |
 | --- | --- | --- |
@@ -185,19 +188,26 @@ Every request field is optional; `{}` returns all routes. Errors:
 
 ```bash
 nvm use                 # Node 24 (engines: >=22.6)
+
+# terminal 1
+cd server
 npm ci
-npm run dev             # API on :3000 (watch) + UI on :5173; Vite proxies /api, so no CORS
-npm test                # Jest (API unit + e2e) and Vitest (UI)
-npm run lint && npm run typecheck && npm run build
-npm run verify:data     # recompute dataset figures
+npm run dev             # API on :3000, watch mode
+
+# terminal 2
+cd client
+npm ci
+npm run dev             # UI on :5173; Vite proxies /api to :3000, so no CORS
 ```
 
-API environment variables: `PORT` (default 3000), `DATA_FILE` (default `data/train-ticket.json`, relative to the repo root) and `CORS_ORIGINS` (comma-separated exact origins; empty means none).
+In each folder: `npm test` (Jest unit + e2e in `server`, Vitest in `client`), `npm run lint`, `npm run typecheck`, `npm run build`. In `server`: `npm run verify:data` to recompute the dataset figures.
+
+API environment variables: `PORT` (default 3000), `DATA_FILE` (default `data/train-ticket.json`, relative to `server/`) and `CORS_ORIGINS` (comma-separated exact origins; empty means none).
 
 **Deployment**: two services from the same repository.
 
-- **API on Render**: `render.yaml` (Blueprint). Build `npm ci --include=dev && npm run build -w apps/api`, start `node apps/api/dist/main.js`, health check `/api/health`. Set `CORS_ORIGINS=https://<project>.vercel.app`.
-- **UI on Vercel**: `vercel.json` at the repository root (install `npm ci`, build `npm run build -w apps/web`, output `apps/web/dist`, SPA rewrite so deep links survive a refresh). Set `VITE_API_URL=https://<service>.onrender.com`, with no trailing slash. It is baked in at build time, so redeploy after changing it.
+- **API on Render**: `render.yaml` at the repository root (Blueprint) with root directory `server`. Build `npm ci --include=dev && npm run build`, start `node dist/main.js`, health check `/api/health`. Set `CORS_ORIGINS=https://<project>.vercel.app`.
+- **UI on Vercel**: set the project's root directory to `client`. `client/vercel.json` sets install `npm ci`, build `npm run build`, output `dist`, and an SPA rewrite so deep links survive a refresh. Keep "Include files outside the root directory" enabled (the default), because the client typechecks against `server/src/api-types.ts`. Set `VITE_API_URL=https://<service>.onrender.com`, with no trailing slash. It is baked in at build time, so redeploy after changing it.
 - Vercel preview deployments have their own URLs and are not in the CORS allowlist. To allow them, add each preview origin to `CORS_ORIGINS`.
 - Render's free tier sleeps after ~15 minutes idle. The UI pings `/api/health` on load and shows a "waking up the server" message after 3 seconds.
 
