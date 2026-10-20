@@ -39,7 +39,7 @@ export function subtitle(node: GraphNode, base: NodeBaseType): string {
 export function VulnerabilityBadge({ count, high }: { count: number; high: boolean }) {
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full px-1.5 py-px text-[11px] font-semibold leading-4 text-ink ${
+      className={`relative inline-flex items-center gap-1 rounded-full px-1.5 py-px text-[11px] font-semibold leading-4 text-ink ${
         high ? 'bg-critical' : 'bg-finding'
       }`}
     >
