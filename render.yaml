@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: backslash-graph-explorer-api
+    runtime: node
+    plan: free
+    # Dev dependencies (TypeScript, Nest CLI) are needed at build time.
+    buildCommand: npm ci --include=dev && npm run build -w apps/api
+    startCommand: node apps/api/dist/main.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      # Exact origins, comma-separated, e.g. https://<project>.vercel.app,http://localhost:5173
+      - key: CORS_ORIGINS
+        sync: false
