@@ -15,8 +15,8 @@ import { useQueryParams } from '../hooks/useQueryParams';
 import { DEFAULT_QUERY_STATE, toPathQuery, type ViewMode } from '../lib/url-state';
 
 const VIEWS: { id: ViewMode; label: string }[] = [
-  { id: 'full', label: 'Full graph' },
-  { id: 'matching', label: 'Matching paths' },
+  { id: 'full', label: 'Highlight' },
+  { id: 'matching', label: 'Only matching' },
 ];
 
 export function ExplorerPage() {
@@ -177,11 +177,11 @@ export function ExplorerPage() {
             <div aria-hidden className="m-3 mt-16 h-[calc(100%-5rem)] animate-pulse rounded-lg border border-line bg-panel/50" />
           )}
 
-          {state.view === 'matching' && result && result.graph.nodes.length === 0 && (
+          {result && result.graph.nodes.length === 0 && (
             <div className="pointer-events-none absolute inset-0 grid place-items-center p-6 text-center">
-              <div>
+              <div className="rounded-lg border border-line bg-panel/90 px-4 py-3 backdrop-blur">
                 <p className="font-medium">No matching paths to show.</p>
-                <p className="mt-1 text-sm text-muted">Change the filters, or switch to the full graph.</p>
+                <p className="mt-1 text-sm text-muted">Change the filters to see routes on the graph.</p>
               </div>
             </div>
           )}

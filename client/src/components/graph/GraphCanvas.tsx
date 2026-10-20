@@ -18,7 +18,7 @@ interface GraphCanvasProps {
   graph: GraphResponse;
   positions: Positions;
   view: ViewMode;
-  /** The current query's subgraph; used by the Matching view. */
+  /** The current query's subgraph: the rest is dimmed in the full view and hidden in the matching view. */
   matching: PathQueryResponse['graph'] | undefined;
   selectedPath: PathSummary | undefined;
   selectedNodeId: string | undefined;
@@ -46,10 +46,12 @@ function Canvas({ graph, positions, view, matching, selectedPath, selectedNodeId
   });
   const [hoveredId, setHoveredId] = useState<string>();
 
-  const visible = useMemo(() => {
-    if (view === 'full' || !matching) return undefined;
-    return { nodes: new Set(matching.nodes.map((n) => n.id)), edges: new Set(matching.edges.map((e) => e.id)) };
-  }, [view, matching]);
+  // Outside the current query's subgraph, nodes and edges are dimmed (highlight view) or hidden (matching view).
+  const match = useMemo(
+    () => matching && { nodes: new Set(matching.nodes.map((n) => n.id)), edges: new Set(matching.edges.map((e) => e.id)) },
+    [matching],
+  );
+  const visible = view === 'matching' ? match : undefined;
 
   const route = useMemo(() => {
     if (!selectedPath) return undefined;
@@ -63,7 +65,11 @@ function Canvas({ graph, positions, view, matching, selectedPath, selectedNodeId
   const nodes = useMemo<ServiceFlowNode[]>(
     () =>
       graph.nodes.map((node) => {
-        const emphasis: Emphasis = route ? (route.nodes.has(node.id) ? 'focus' : 'dim') : node.id === hoveredId ? 'focus' : 'normal';
+        // A selected node stays opaque even outside the matches, so its selection ring is visible.
+        const outsideMatch = match !== undefined && !match.nodes.has(node.id) && node.id !== selectedNodeId;
+        const emphasis: Emphasis = route
+          ? route.nodes.has(node.id) ? 'focus' : 'dim'
+          : outsideMatch ? 'dim' : node.id === hoveredId ? 'focus' : 'normal';
         return {
           id: node.id,
           type: 'service',
@@ -76,16 +82,17 @@ function Canvas({ graph, positions, view, matching, selectedPath, selectedNodeId
           ariaLabel: `${node.name}, ${node.kind}`,
         };
       }),
-    [graph, positions, visible, route, hoveredId, selectedNodeId, categories],
+    [graph, positions, match, visible, route, hoveredId, selectedNodeId, categories],
   );
 
   const edges = useMemo<Edge[]>(
     () =>
       graph.edges.map((edge) => {
         const onRoute = route?.edges.has(edge.id) ?? false;
-        // Without a selected route, the hovered and the selected node both light up their edges.
+        const inMatch = !match || match.edges.has(edge.id);
+        // Without a selected route, the hovered and the selected node both light up their matching edges.
         const touches = (id: string | undefined) => id !== undefined && (edge.source === id || edge.target === id);
-        const hovered = !route && (touches(hoveredId) || touches(selectedNodeId));
+        const hovered = !route && inMatch && (touches(hoveredId) || touches(selectedNodeId));
         const color = onRoute ? COLORS.route : hovered ? COLORS.hover : COLORS.idle;
         return {
           id: edge.id,
@@ -97,12 +104,12 @@ function Canvas({ graph, positions, view, matching, selectedPath, selectedNodeId
           style: {
             stroke: color,
             strokeWidth: onRoute ? 2.5 : hovered ? 2 : 1.25,
-            opacity: route && !onRoute ? 0.2 : 1,
+            opacity: (route && !onRoute) || !inMatch ? 0.2 : 1,
           },
           markerEnd: { type: MarkerType.ArrowClosed, color, width: 14, height: 14 },
         };
       }),
-    [graph, visible, route, hoveredId, selectedNodeId],
+    [graph, match, visible, route, hoveredId, selectedNodeId],
   );
 
   // The `fitView` prop handles the first render; these handle later changes.

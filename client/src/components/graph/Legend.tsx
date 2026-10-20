@@ -35,6 +35,12 @@ export function Legend() {
           Selected route, in call direction
         </li>
         <li className="flex items-center gap-2">
+          <span className="grid size-5 place-items-center rounded border border-line-strong bg-ink opacity-20">
+            <Server aria-hidden className="size-3" />
+          </span>
+          Faded: not on a matching path
+        </li>
+        <li className="flex items-center gap-2">
           <span className="rounded border border-line-strong px-1 text-[10px] text-faint">Isolated</span>
           No connections in the data
         </li>
