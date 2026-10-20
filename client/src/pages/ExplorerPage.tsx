@@ -15,8 +15,8 @@ import { useQueryParams } from '../hooks/useQueryParams';
 import { DEFAULT_QUERY_STATE, toPathQuery, type ViewMode } from '../lib/url-state';
 
 const VIEWS: { id: ViewMode; label: string }[] = [
-  { id: 'full', label: 'Highlight' },
-  { id: 'matching', label: 'Only matching' },
+  { id: 'full', label: 'Full graph' },
+  { id: 'matching', label: 'Matching only' },
 ];
 
 export function ExplorerPage() {

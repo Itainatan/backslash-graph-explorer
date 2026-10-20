@@ -46,7 +46,7 @@ function Canvas({ graph, positions, view, matching, selectedPath, selectedNodeId
   });
   const [hoveredId, setHoveredId] = useState<string>();
 
-  // Outside the current query's subgraph, nodes and edges are dimmed (highlight view) or hidden (matching view).
+  // Outside the current query's subgraph, nodes and edges are dimmed (full view) or hidden (matching view).
   const match = useMemo(
     () => matching && { nodes: new Set(matching.nodes.map((n) => n.id)), edges: new Set(matching.edges.map((e) => e.id)) },
     [matching],
