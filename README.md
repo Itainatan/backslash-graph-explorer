@@ -6,7 +6,7 @@ A graph query engine, REST API and investigation UI for the Train Ticket microse
 
 - **Backend**: NestJS loads `data/train-ticket.json` once, validates it, and enumerates every route from an entry point to an end point with a depth-first search. Routes can be filtered by a registry of pluggable filters (public entry, ends at a sink, has a vulnerability).
 - **Frontend**: React + React Flow dashboard. Toggle filters, see the matching routes on the graph, and inspect any service.
-- **Live**: UI `<VERCEL_URL>` · API `<RENDER_URL>/api/health` (free tier: the first request may take up to a minute)
+- **Live**: UI https://backslash-graph-explorer.vercel.app · API https://backslash-graph-explorer-api.onrender.com/api/health (free tier: the first request after a quiet period may take up to a minute)
 - **Run locally** (Node 24, see `.nvmrc`), in two terminals: `cd server && npm ci && npm run dev` and `cd client && npm ci && npm run dev`, then open http://localhost:5173
 - **Test**: `npm test` in each folder (128 tests: 102 server, 26 client)
 
