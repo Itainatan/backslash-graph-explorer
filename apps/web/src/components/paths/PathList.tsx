@@ -1,5 +1,5 @@
 import type { GraphNode, GraphStats, PathQueryResponse } from '@graph-explorer/shared';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { QueryState } from '../../lib/url-state';
 import { QUERY_LIMITS } from '../../lib/url-state';
 import { PathCard } from './PathCard';
@@ -69,7 +69,11 @@ function TruncationNotice({ meta, update }: Pick<PathListProps, 'update'> & { me
 export function PathList({ response, state, stats, nodesById, dimmed, selectedPathId, onSelectPath, onNodeClick, update, onReset }: PathListProps) {
   const [shown, setShown] = useState(PAGE);
   // A new result starts from the top again.
-  useEffect(() => setShown(PAGE), [response]);
+  const [prevResponse, setPrevResponse] = useState(response);
+  if (response !== prevResponse) {
+    setPrevResponse(response);
+    setShown(PAGE);
+  }
 
   const { paths, meta } = response;
 

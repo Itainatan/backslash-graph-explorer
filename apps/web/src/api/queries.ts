@@ -6,7 +6,7 @@ import type {
   PathQueryResponse,
 } from '@graph-explorer/shared';
 import { keepPreviousData, QueryClient, useQuery } from '@tanstack/react-query';
-import { useRef } from 'react';
+import { useState } from 'react';
 import { ApiError, apiFetch } from './client';
 
 export const queryClient = new QueryClient({
@@ -46,9 +46,10 @@ export function usePaths(request: Required<PathQueryRequest>, enabled: boolean) 
     staleTime: Infinity,
     enabled,
   });
-  const lastSuccess = useRef<PathQueryResponse | undefined>(undefined);
-  if (query.data && !query.isPlaceholderData) lastSuccess.current = query.data;
-  return { ...query, lastSuccess: lastSuccess.current };
+  const fresh = query.data && !query.isPlaceholderData ? query.data : undefined;
+  const [lastSuccess, setLastSuccess] = useState<PathQueryResponse>();
+  if (fresh && fresh !== lastSuccess) setLastSuccess(fresh);
+  return { ...query, lastSuccess: fresh ?? lastSuccess };
 }
 
 /** Match count only (limit 1), used for the suggested-investigation buttons. */

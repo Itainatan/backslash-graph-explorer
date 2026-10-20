@@ -8,7 +8,7 @@ import {
   Controls,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Positions } from '../../hooks/useGraphLayout';
 import { nodeCategory } from '../../lib/node-category';
 import type { ViewMode } from '../../lib/url-state';
@@ -41,7 +41,9 @@ function Canvas({ graph, positions, view, matching, selectedPath, selectedNodeId
   // their own triggers (otherwise a hover or a selection would re-fit the whole graph).
   const { fitView } = useReactFlow();
   const fitViewRef = useRef(fitView);
-  fitViewRef.current = fitView;
+  useLayoutEffect(() => {
+    fitViewRef.current = fitView;
+  });
   const [hoveredId, setHoveredId] = useState<string>();
 
   const visible = useMemo(() => {

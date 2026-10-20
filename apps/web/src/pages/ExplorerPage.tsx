@@ -1,5 +1,5 @@
 import { ChevronDown, Maximize, Map as MapIcon } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useFilters, useGraph, usePaths, useStats } from '../api/queries';
 import { Header } from '../components/dashboard/Header';
 import { MetricStrip } from '../components/dashboard/MetricStrip';
@@ -42,9 +42,7 @@ export function ExplorerPage() {
   const selectedNode = selectedNodeId ? nodesById.get(selectedNodeId) : undefined;
 
   // A new result that no longer contains the selected path clears the selection.
-  useEffect(() => {
-    if (selectedPathId && result && !selectedPath) setSelectedPathId(undefined);
-  }, [selectedPathId, result, selectedPath]);
+  if (selectedPathId && result && !selectedPath) setSelectedPathId(undefined);
 
   const firstLoad = graphQuery.isPending || statsQuery.isPending || filtersQuery.isPending;
   const slowStart = useDelayedFlag(firstLoad && !graphQuery.isError && !filtersQuery.isError, 3000);

@@ -98,7 +98,14 @@ function allSimplePaths() {
 function reachable(from: string) {
   const seen = new Set([from]);
   const stack = [from];
-  while (stack.length) for (const n of adj.get(stack.pop()!)!) if (!seen.has(n)) (seen.add(n), stack.push(n));
+  while (stack.length) {
+    for (const n of adj.get(stack.pop()!)!) {
+      if (!seen.has(n)) {
+        seen.add(n);
+        stack.push(n);
+      }
+    }
+  }
   return seen;
 }
 

@@ -1,6 +1,6 @@
 import type { FilterDescriptor, PathQueryMeta } from '@graph-explorer/shared';
 import { ChevronRight, Loader2, RotateCcw } from 'lucide-react';
-import { useEffect, useId, useState } from 'react';
+import { useId, useState } from 'react';
 import { usePathCount } from '../../api/queries';
 import { QUERY_LIMITS, type QueryState } from '../../lib/url-state';
 
@@ -75,7 +75,12 @@ function FilterSwitch({ filter, checked, onToggle }: { filter: FilterDescriptor;
 function NumberField({ label, value, range, onCommit }: { label: string; value: number; range: { min: number; max: number }; onCommit: (v: number) => void }) {
   const [draft, setDraft] = useState(String(value));
   const id = useId();
-  useEffect(() => setDraft(String(value)), [value]);
+  // A new committed value (e.g. Back/Forward) replaces the draft.
+  const [prevValue, setPrevValue] = useState(value);
+  if (value !== prevValue) {
+    setPrevValue(value);
+    setDraft(String(value));
+  }
   const commit = () => {
     const next = Number(draft);
     if (Number.isInteger(next) && next >= range.min && next <= range.max) {
