@@ -1,10 +1,9 @@
 import type { GraphNode, GraphStats, PathQueryResponse } from '@api-types';
-import { useState } from 'react';
+import { Loader2 } from 'lucide-react';
+import { PAGE_SIZE } from '../../lib/paging';
 import type { QueryState } from '../../lib/url-state';
 import { QUERY_LIMITS } from '../../lib/url-state';
 import { PathCard } from './PathCard';
-
-const PAGE = 100;
 
 interface PathListProps {
   response: PathQueryResponse;
@@ -12,6 +11,7 @@ interface PathListProps {
   stats: GraphStats | undefined;
   nodesById: ReadonlyMap<string, GraphNode>;
   dimmed: boolean;
+  loadMore: { onLoad: () => void; loading: boolean; failed: boolean };
   selectedPathId: string | undefined;
   onSelectPath: (id: string | undefined) => void;
   onNodeClick: (id: string) => void;
@@ -31,12 +31,11 @@ function publicReachExplanation(stats: GraphStats | undefined): string | undefin
   return `Public entry points reach ${reachableNodeCount} other ${reachableNodeCount === 1 ? 'service' : 'services'}; ${parts.join(' and ')}.`;
 }
 
+/** Depth and budget cuts only; more pages (the `limit` reason) are handled by "Load more". */
 function TruncationNotice({ meta, update }: Pick<PathListProps, 'update'> & { meta: PathQueryResponse['meta'] }) {
   const reasons = meta.truncationReasons;
-  const canRaiseLimit = reasons.includes('limit') && meta.limit < QUERY_LIMITS.limit.max;
   const canRaiseDepth = reasons.includes('depth') && meta.maxDepth < QUERY_LIMITS.maxDepth.max;
   const text = [
-    reasons.includes('limit') && `only the first ${meta.limit} paths are returned`,
     reasons.includes('depth') && `paths longer than ${meta.maxDepth} nodes are not explored`,
     reasons.includes('budget') && 'the search stopped at its traversal limit',
   ].filter(Boolean);
@@ -44,38 +43,22 @@ function TruncationNotice({ meta, update }: Pick<PathListProps, 'update'> & { me
     <div className="rounded-md border border-caution/30 bg-caution/5 px-3 py-2 text-xs text-muted">
       <p className="text-caution">Some paths may be excluded by the current search limits.</p>
       <p className="mt-0.5">Right now {text.join(', and ')}.</p>
-      {(canRaiseLimit || canRaiseDepth) && (
+      {canRaiseDepth && (
         <button
           type="button"
-          onClick={() =>
-            update({
-              ...(canRaiseLimit ? { limit: QUERY_LIMITS.limit.max } : {}),
-              ...(canRaiseDepth ? { maxDepth: QUERY_LIMITS.maxDepth.max } : {}),
-            })
-          }
+          onClick={() => update({ maxDepth: QUERY_LIMITS.maxDepth.max })}
           className="mt-1.5 font-medium text-route hover:underline"
         >
-          {canRaiseLimit && canRaiseDepth
-            ? 'Raise both limits to the maximum'
-            : canRaiseLimit
-              ? `Show up to ${QUERY_LIMITS.limit.max} paths`
-              : `Explore paths up to ${QUERY_LIMITS.maxDepth.max} nodes`}
+          Explore paths up to {QUERY_LIMITS.maxDepth.max} nodes
         </button>
       )}
     </div>
   );
 }
 
-export function PathList({ response, state, stats, nodesById, dimmed, selectedPathId, onSelectPath, onNodeClick, update, onReset }: PathListProps) {
-  const [shown, setShown] = useState(PAGE);
-  // A new result starts from the top again.
-  const [prevResponse, setPrevResponse] = useState(response);
-  if (response !== prevResponse) {
-    setPrevResponse(response);
-    setShown(PAGE);
-  }
-
+export function PathList({ response, state, stats, nodesById, dimmed, loadMore, selectedPathId, onSelectPath, onNodeClick, update, onReset }: PathListProps) {
   const { paths, meta } = response;
+  const searchCut = meta.truncationReasons.some((r) => r !== 'limit');
 
   if (paths.length === 0) {
     const explanation = state.filters.includes('publicEntry') ? publicReachExplanation(stats) : undefined;
@@ -83,7 +66,7 @@ export function PathList({ response, state, stats, nodesById, dimmed, selectedPa
       <div className="rounded-lg border border-dashed border-line-strong px-4 py-6 text-center">
         <p className="font-medium">No matching paths found for the selected filters.</p>
         {explanation && <p className="mx-auto mt-2 max-w-xs text-sm text-muted">{explanation}</p>}
-        {meta.truncated && <p className="mt-2 text-xs text-muted">The search limits may hide matches; try raising them.</p>}
+        {searchCut && <p className="mt-2 text-xs text-muted">The search limits may hide matches; try raising them.</p>}
         <button type="button" onClick={onReset} className="mt-3 text-sm font-medium text-route hover:underline">
           Reset filters
         </button>
@@ -93,9 +76,9 @@ export function PathList({ response, state, stats, nodesById, dimmed, selectedPa
 
   return (
     <div className={`space-y-2 transition-opacity ${dimmed ? 'opacity-60' : ''}`}>
-      {meta.truncated && <TruncationNotice meta={meta} update={update} />}
+      {searchCut && <TruncationNotice meta={meta} update={update} />}
       <ol className="space-y-2" aria-label="Matching paths">
-        {paths.slice(0, shown).map((path, i) => (
+        {paths.map((path, i) => (
           <PathCard
             key={path.id}
             path={path}
@@ -107,14 +90,22 @@ export function PathList({ response, state, stats, nodesById, dimmed, selectedPa
           />
         ))}
       </ol>
-      {shown < paths.length && (
-        <button
-          type="button"
-          onClick={() => setShown((s) => s + PAGE)}
-          className="w-full rounded-md border border-line py-2 text-sm text-muted hover:border-line-strong hover:text-text"
-        >
-          Show {Math.min(PAGE, paths.length - shown)} more of {paths.length - shown} remaining
-        </button>
+      {meta.hasMore && (
+        <div className="space-y-1">
+          <button
+            type="button"
+            onClick={loadMore.onLoad}
+            disabled={loadMore.loading}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-line py-2 text-sm text-muted hover:border-line-strong hover:text-text disabled:cursor-wait"
+          >
+            {loadMore.loading && <Loader2 aria-hidden className="size-4 animate-spin" />}
+            {loadMore.loading ? 'Loading…' : `Load ${Math.min(PAGE_SIZE, meta.matchedCount - paths.length)} more`}
+            <span className="text-faint">
+              · {paths.length} of {meta.matchedCount.toLocaleString('en-US')} shown
+            </span>
+          </button>
+          {loadMore.failed && <p className="text-center text-xs text-caution">Could not load more paths. Try again.</p>}
+        </div>
       )}
     </div>
   );

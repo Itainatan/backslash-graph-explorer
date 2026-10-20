@@ -10,10 +10,9 @@ describe('parseQueryState', () => {
   });
 
   it('reads every parameter', () => {
-    expect(parse('filters=endsAtSink,hasVulnerability&maxDepth=8&limit=100&view=matching')).toEqual({
+    expect(parse('filters=endsAtSink,hasVulnerability&maxDepth=8&view=matching')).toEqual({
       filters: ['endsAtSink', 'hasVulnerability'],
       maxDepth: 8,
-      limit: 100,
       view: 'matching',
     });
   });
@@ -29,13 +28,13 @@ describe('parseQueryState', () => {
     expect(parse(`maxDepth=${raw}`).maxDepth).toBe(12);
   });
 
-  it.each(['0', '501', '2.5', 'many'])('invalid limit "%s" falls back to the default', (raw) => {
-    expect(parse(`limit=${raw}`).limit).toBe(250);
+  it('ignores the old limit parameter (paging replaced it)', () => {
+    expect(parse('limit=100')).toEqual(DEFAULT_QUERY_STATE);
   });
 
   it('accepts the range boundaries', () => {
-    expect(parse('maxDepth=1&limit=500')).toMatchObject({ maxDepth: 1, limit: 500 });
-    expect(parse('maxDepth=30&limit=1')).toMatchObject({ maxDepth: 30, limit: 1 });
+    expect(parse('maxDepth=1').maxDepth).toBe(1);
+    expect(parse('maxDepth=30').maxDepth).toBe(30);
   });
 
   it('invalid view falls back to full', () => {
@@ -54,14 +53,14 @@ describe('serializeQueryState', () => {
   });
 
   it('round-trips', () => {
-    const search = 'filters=publicEntry,endsAtSink&maxDepth=5&limit=10&view=matching';
+    const search = 'filters=publicEntry,endsAtSink&maxDepth=5&view=matching';
     expect(serializeQueryState(parse(search), KNOWN)).toBe(search);
     const state = parse(search);
     expect(parse(serializeQueryState(state, KNOWN))).toEqual(state);
   });
 
-  it('canonicalizes a messy URL to a stable form', () => {
-    expect(serializeQueryState(parse('view=full&maxDepth=12&filters=x,hasVulnerability&limit=nope'), KNOWN)).toBe(
+  it('canonicalizes a messy URL to a stable form, dropping an old limit parameter', () => {
+    expect(serializeQueryState(parse('view=full&maxDepth=12&filters=x,hasVulnerability&limit=100'), KNOWN)).toBe(
       'filters=hasVulnerability',
     );
   });

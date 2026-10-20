@@ -5,8 +5,9 @@ import type {
   PathQueryRequest,
   PathQueryResponse,
 } from '@api-types';
-import { keepPreviousData, QueryClient, useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { keepPreviousData, QueryClient, useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
+import { mergePages, nextPageOffset, PAGE_SIZE } from '../lib/paging';
 import { ApiError, apiFetch } from './client';
 
 export const queryClient = new QueryClient({
@@ -35,21 +36,25 @@ const fetchPaths = (request: Required<PathQueryRequest>) =>
   apiFetch<PathQueryResponse>('/api/paths/query', { method: 'POST', body: JSON.stringify(request) });
 
 /**
- * The filtered path query. Keeps showing the previous result while a new one loads, and
- * remembers the last successful result so a failed update can fall back to it.
+ * The filtered path query, loaded a page at a time; `data` is the loaded pages merged into one
+ * response. Keeps showing the previous result while a new one loads, and remembers the last
+ * successful result so a failed update can fall back to it.
  */
-export function usePaths(request: Omit<Required<PathQueryRequest>, 'offset'>, enabled: boolean) {
-  const query = useQuery({
+export function usePaths(request: Pick<Required<PathQueryRequest>, 'filters' | 'maxDepth'>, enabled: boolean) {
+  const query = useInfiniteQuery({
     queryKey: ['paths', request],
-    queryFn: () => fetchPaths({ ...request, offset: 0 }),
+    queryFn: ({ pageParam }) => fetchPaths({ ...request, limit: PAGE_SIZE, offset: pageParam }),
+    initialPageParam: 0,
+    getNextPageParam: nextPageOffset,
     placeholderData: keepPreviousData,
     staleTime: Infinity,
     enabled,
   });
-  const fresh = query.data && !query.isPlaceholderData ? query.data : undefined;
+  const merged = useMemo(() => query.data && mergePages(query.data.pages), [query.data]);
+  const fresh = merged && !query.isPlaceholderData ? merged : undefined;
   const [lastSuccess, setLastSuccess] = useState<PathQueryResponse>();
   if (fresh && fresh !== lastSuccess) setLastSuccess(fresh);
-  return { ...query, lastSuccess: fresh ?? lastSuccess };
+  return { ...query, data: merged, lastSuccess: fresh ?? lastSuccess };
 }
 
 /** Match count only (limit 1), used for the suggested-investigation buttons. */
