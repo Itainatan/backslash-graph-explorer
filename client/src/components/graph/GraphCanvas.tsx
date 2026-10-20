@@ -83,7 +83,9 @@ function Canvas({ graph, positions, view, matching, selectedPath, selectedNodeId
     () =>
       graph.edges.map((edge) => {
         const onRoute = route?.edges.has(edge.id) ?? false;
-        const hovered = !route && hoveredId !== undefined && (edge.source === hoveredId || edge.target === hoveredId);
+        // Without a selected route, the hovered and the selected node both light up their edges.
+        const touches = (id: string | undefined) => id !== undefined && (edge.source === id || edge.target === id);
+        const hovered = !route && (touches(hoveredId) || touches(selectedNodeId));
         const color = onRoute ? COLORS.route : hovered ? COLORS.hover : COLORS.idle;
         return {
           id: edge.id,
@@ -100,7 +102,7 @@ function Canvas({ graph, positions, view, matching, selectedPath, selectedNodeId
           markerEnd: { type: MarkerType.ArrowClosed, color, width: 14, height: 14 },
         };
       }),
-    [graph, visible, route, hoveredId],
+    [graph, visible, route, hoveredId, selectedNodeId],
   );
 
   // The `fitView` prop handles the first render; these handle later changes.
