@@ -165,10 +165,11 @@ export function FilterPanel({ filters, state, ready, isDefault, update, onReset 
             type="button"
             onClick={onReset}
             disabled={isDefault}
-            className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted hover:text-text disabled:cursor-not-allowed disabled:opacity-40"
+            title="Clear filters, search limits and view"
+            className="inline-flex items-center gap-1.5 rounded-md border border-route/50 bg-route/10 px-2.5 py-1 text-sm font-medium text-route transition-colors hover:bg-route/20 disabled:cursor-not-allowed disabled:border-line disabled:bg-transparent disabled:text-faint"
           >
-            <RotateCcw aria-hidden className="size-3" />
-            Reset
+            <RotateCcw aria-hidden className="size-3.5" />
+            Reset all
           </button>
         </div>
         {filters ? (
