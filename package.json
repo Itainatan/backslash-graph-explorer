@@ -1,0 +1,18 @@
+{
+  "name": "backslash-graph-explorer",
+  "private": true,
+  "description": "Graph query engine, REST API and investigation UI for the Train Ticket microservice graph",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22.6"
+  },
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "verify:data": "node --experimental-strip-types --no-warnings scripts/verify-dataset.ts"
+  }
+}
